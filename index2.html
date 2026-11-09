@@ -1,0 +1,214 @@
+import os
+import glob
+import numpy as np
+import pretty_midi
+import tensorflow as tf
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Embedding
+
+# SETTINGS
+SEQUENCE_LENGTH = 32
+EPOCHS = 40
+OUTPUT_FOLDER = "generated_music"
+DATA_FOLDER = "midi_data"
+
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+
+# STEP 1: COLLECT MIDI DATA
+def collect_midi_data():
+
+    notes = []
+
+    files = glob.glob(os.path.join(DATA_FOLDER, "*.mid"))
+    files += glob.glob(os.path.join(DATA_FOLDER, "*.midi"))
+
+    if not files:
+        raise FileNotFoundError(
+            "No MIDI files found! Add MIDI files to the midi_data folder."
+        )
+
+    for file in files:
+        try:
+            midi = pretty_midi.PrettyMIDI(file)
+
+            file_notes = []
+
+            for instrument in midi.instruments:
+                if not instrument.is_drum:
+                    for note in instrument.notes:
+                        file_notes.append(
+                            (note.start, int(note.pitch))
+                        )
+
+            file_notes.sort(key=lambda x: x[0])
+            notes.extend([pitch for _, pitch in file_notes])
+
+            print("Loaded:", file)
+
+        except Exception as error:
+            print("Could not read", file, ":", error)
+
+    print("Total notes collected:", len(notes))
+
+    if len(notes) <= SEQUENCE_LENGTH:
+        raise ValueError(
+            "Not enough MIDI notes. Add more MIDI training data."
+        )
+
+    return notes
+
+
+# STEP 2: PREPROCESS DATA
+def preprocess_data(notes):
+
+    sequences = []
+    labels = []
+
+    for i in range(len(notes) - SEQUENCE_LENGTH):
+        sequences.append(notes[i:i + SEQUENCE_LENGTH])
+        labels.append(notes[i + SEQUENCE_LENGTH])
+
+    X = np.array(sequences, dtype=np.int32)
+    y = np.array(labels, dtype=np.int32)
+
+    return X, y
+
+
+# STEP 3: BUILD LSTM MODEL
+def build_model():
+
+    model = Sequential([
+        Input(shape=(SEQUENCE_LENGTH,)),
+        Embedding(input_dim=128, output_dim=64),
+        LSTM(128, return_sequences=True),
+        Dropout(0.2),
+        LSTM(128),
+        Dense(128, activation="relu"),
+        Dense(128, activation="softmax")
+    ])
+
+    model.compile(
+        optimizer="adam",
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+
+    return model
+
+
+# STEP 4: TRAIN MODEL
+def train_model(model, X, y):
+
+    print("Training AI music model...")
+
+    model.fit(
+        X,
+        y,
+        epochs=EPOCHS,
+        batch_size=32
+    )
+
+    model.save(
+        os.path.join(OUTPUT_FOLDER, "music_model.keras")
+    )
+
+    print("Training completed!")
+
+
+# STEP 5: GENERATE MUSIC
+def generate_music(model, notes):
+
+    sequence = list(notes[-SEQUENCE_LENGTH:])
+    generated_notes = []
+
+    for _ in range(100):
+
+        input_data = np.array(
+            [sequence], dtype=np.int32
+        )
+
+        prediction = model.predict(
+            input_data, verbose=0
+        )[0]
+
+        prediction = np.maximum(prediction, 0)
+        prediction = prediction / np.sum(prediction)
+
+        next_note = np.random.choice(
+            np.arange(128),
+            p=prediction
+        )
+
+        generated_notes.append(int(next_note))
+
+        sequence.append(int(next_note))
+        sequence = sequence[-SEQUENCE_LENGTH:]
+
+    return generated_notes
+
+
+# STEP 6: SAVE GENERATED MUSIC AS MIDI
+def save_midi(generated_notes):
+
+    midi = pretty_midi.PrettyMIDI()
+
+    instrument = pretty_midi.Instrument(
+        program=pretty_midi.instrument_name_to_program(
+            "Acoustic Grand Piano"
+        )
+    )
+
+    start_time = 0.0
+
+    for pitch in generated_notes:
+
+        note = pretty_midi.Note(
+            velocity=100,
+            pitch=int(pitch),
+            start=start_time,
+            end=start_time + 0.5
+        )
+
+        instrument.notes.append(note)
+        start_time += 0.5
+
+    midi.instruments.append(instrument)
+
+    output_path = os.path.join(
+        OUTPUT_FOLDER,
+        "AI_Generated_Music.mid"
+    )
+
+    midi.write(output_path)
+
+    print("Music saved successfully:", output_path)
+
+
+# MAIN PROGRAM
+def main():
+
+    print("AI MUSIC GENERATION PROJECT")
+
+    notes = collect_midi_data()
+
+    X, y = preprocess_data(notes)
+
+    print("Training samples:", len(X))
+
+    model = build_model()
+
+    model.summary()
+
+    train_model(model, X, y)
+
+    generated_notes = generate_music(model, notes)
+
+    save_midi(generated_notes)
+
+    print("AI MUSIC GENERATION COMPLETED!")
+
+
+if __name__ == "__main__":
+    main()
