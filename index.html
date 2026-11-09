@@ -1,0 +1,193 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Language Translation Tool</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #eef2ff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+}
+
+.container {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 550px;
+    box-shadow: 0 5px 20px #0002;
+}
+
+h1 {
+    text-align: center;
+    color: #4338ca;
+}
+
+select, textarea, button {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 7px;
+    box-sizing: border-box;
+    font-size: 15px;
+}
+
+textarea {
+    height: 120px;
+    resize: vertical;
+}
+
+button {
+    background: #4338ca;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #312e81;
+}
+
+#result {
+    background: #f1f5f9;
+    padding: 15px;
+    min-height: 50px;
+    border-radius: 7px;
+    overflow-wrap: anywhere;
+}
+
+.row {
+    display: flex;
+    gap: 12px;
+}
+
+.row select {
+    width: 50%;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🌍 Language Translator</h1>
+
+<p>Select Languages</p>
+
+<div class="row">
+<select id="source">
+<option value="en">English</option>
+<option value="ta">Tamil</option>
+<option value="hi">Hindi</option>
+<option value="fr">French</option>
+<option value="es">Spanish</option>
+<option value="de">German</option>
+</select>
+
+<select id="target">
+<option value="ta">Tamil</option>
+<option value="en">English</option>
+<option value="hi">Hindi</option>
+<option value="fr">French</option>
+<option value="es">Spanish</option>
+<option value="de">German</option>
+</select>
+</div>
+
+<textarea id="inputText"
+placeholder="Enter text to translate..."></textarea>
+
+<button onclick="translateText()">Translate</button>
+
+<h3>Translated Text:</h3>
+
+<div id="result">Your translation will appear here.</div>
+
+<button onclick="copyText()">Copy Translation</button>
+
+<p id="status"></p>
+
+</div>
+
+<script>
+
+async function translateText() {
+
+    const text = document.getElementById("inputText").value;
+    const source = document.getElementById("source").value;
+    const target = document.getElementById("target").value;
+
+    const result = document.getElementById("result");
+    const status = document.getElementById("status");
+
+    if (!text.trim()) {
+        status.innerText = "Please enter some text.";
+        return;
+    }
+
+    if (source === target) {
+        result.innerText = text;
+        status.innerText = "Source and target languages are the same.";
+        return;
+    }
+
+    status.innerText = "Translating...";
+
+    try {
+
+        const url =
+        "https://api.mymemory.translated.net/get?q=" +
+        encodeURIComponent(text) +
+        "&langpair=" + source + "|" + target;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.responseStatus !== 200) {
+            throw new Error("Translation service error");
+        }
+
+        result.innerText =
+        data.responseData.translatedText;
+
+        status.innerText = "Translation completed!";
+
+    } catch (error) {
+
+        status.innerText =
+        "Translation failed. Please try again.";
+
+    }
+}
+
+function copyText() {
+
+    const text =
+    document.getElementById("result").innerText;
+
+    navigator.clipboard.writeText(text)
+    .then(() => {
+        document.getElementById("status").innerText =
+        "Translation copied!";
+    })
+    .catch(() => {
+        document.getElementById("status").innerText =
+        "Unable to copy text.";
+    });
+
+}
+
+</script>
+
+</body>
+</html>
